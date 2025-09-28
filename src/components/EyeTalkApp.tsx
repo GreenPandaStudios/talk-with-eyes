@@ -1,0 +1,262 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEyeTracking } from '../hooks/useEyeTracking';
+import { useOpenAI } from '../hooks/useOpenAI';
+import { PhoneticWheel } from './PhoneticWheel';
+
+import type { languages } from '../types';
+import styles from './EyeTalkApp.module.css';
+
+const EyeTalkApp: React.FC = () => {
+  const [apiKey, setApiKey] = useState('');
+  const [phoneticInput, setPhoneticInput] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
+  const [language, setLanguage] = useState<languages>('english');
+  const [showApiInput, setShowApiInput] = useState(true);
+
+  const { gazeData, status, startTracking, stopTracking, error: trackingError, calibrationOverlay } = useEyeTracking();
+  const { processPhoneticInput, isProcessing, error: openaiError, setApiKey: setOpenAIKey } = useOpenAI();
+
+  useEffect(() => {
+    if (apiKey) {processPhoneticInput
+      processPhoneticInput(phoneticInput, language);
+      setOpenAIKey(apiKey);
+    }
+  }, [apiKey, setOpenAIKey]);
+
+  const handlePhoneticSelection = useCallback((sound: string) => {
+    if (sound === 'DELETE') {
+      setPhoneticInput((prev) => prev.slice(0, -1));
+    } else {
+      setPhoneticInput((prev) => prev + sound);
+    }
+  }, []);
+
+  const handleSubmit = useCallback(async () => {
+    if (!phoneticInput.trim()) return;
+
+    try {
+      const result = await processPhoneticInput(phoneticInput, language);
+      // clear the input after submission
+      setPhoneticInput('');
+      setTranslatedText(result);
+    } catch (error) {
+      console.error('Error processing input:', error);
+    }
+  }, [language, phoneticInput, processPhoneticInput]);
+
+  const handleApiKeySubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (apiKey.trim()) {
+      setShowApiInput(false);
+    }
+  };
+
+  const statusBadge = useMemo(() => {
+    switch (status) {
+      case 'active':
+        return 'Tracking active';
+      case 'calibrating':
+        return 'Calibrating';
+      case 'reconnecting':
+        return 'Reconnecting';
+      case 'denied':
+        return 'Camera denied';
+      case 'error':
+        return 'Tracking error';
+      default:
+        return 'Tracking stopped';
+    }
+  }, [status]);
+
+
+
+  const statusDescription = useMemo(() => {
+    switch (status) {
+      case 'active':
+        return 'Move your gaze to choose tiles.';
+      case 'calibrating':
+        return 'Follow the calibration dots to begin.';
+      case 'reconnecting':
+        return 'Hold steady—we are automatically reconnecting.';
+      case 'denied':
+        return 'Allow camera access to continue.';
+      case 'error':
+        return 'Fix the error, then restart tracking.';
+      default:
+        return 'Press start to begin eye tracking.';
+    }
+  }, [status]);
+
+  const gazeLabel = (() => {
+    if (status === 'active' && gazeData) {
+      return `${Math.round(gazeData.GazeX)}, ${Math.round(gazeData.GazeY)}`;
+    }
+    if (status === 'reconnecting') {
+      return 'Reconnecting…';
+    }
+    return 'Waiting for gaze…';
+  })();
+
+  const combinedError = trackingError || openaiError;
+  const isTrackingEngaged = status === 'active' || status === 'reconnecting';
+  const isWheelActive = status === 'active';
+  const fallbackGazeX = gazeData?.GazeX ?? 0;
+  const fallbackGazeY = gazeData?.GazeY ?? 0;
+  const helperCopy = useMemo(() => {
+    if (status === 'calibrating') {
+      return 'Keep your head steady and follow the calibration points.';
+    }
+    if (status === 'reconnecting') {
+      return 'Hold still—tracking restarts automatically every few seconds.';
+    }
+    return null;
+  }, [status]);
+
+  // Show calibration overlay when the hook provides one
+  if (calibrationOverlay) {
+    return (
+      <div className={styles.appShell}>
+        {calibrationOverlay}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.appShell}>
+      <div className={styles.wheelStage}>
+        {
+        !isProcessing &&
+        <PhoneticWheel
+          gazeX={fallbackGazeX}
+          gazeY={fallbackGazeY}
+          isTracking={isWheelActive}
+          language={language}
+          onSelection={handlePhoneticSelection}
+          onSubmit={handleSubmit}
+        />
+        }
+      </div>
+
+      {showApiInput ? (
+        <div className={styles.apiOverlay}>
+          <form onSubmit={handleApiKeySubmit} className={styles.apiForm}>
+            <h2>Connect your OpenAI account</h2>
+            <p className={styles.apiFormDescription}>
+              Your key stays on this device. Enter it once to unlock speech.
+            </p>
+            <label htmlFor="apiKey" className={styles.apiFormLabel}>
+              OpenAI API key
+            </label>
+            <input
+              type="password"
+              id="apiKey"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="sk-..."
+              required
+            />
+            <button type="submit">Save and continue</button>
+          </form>
+        </div>
+      ) : (
+        <>
+          <div className={`${styles.edgePanel} ${styles.brandPanel}`}>
+            <h1>Talk With Eyes</h1>
+            <p className={styles.tagline}>Spell words with your gaze—everything else hugs the edges.</p>
+          </div>
+
+          <div className={`${styles.edgePanel} ${styles.sessionPanel}`}>
+            <div className={styles.panelHeader}>
+              <h2>Session</h2>
+              <span className={styles.cardSubtitle}>{statusDescription}</span>
+            </div>
+
+            <div className={styles.controlRow}>
+              {isTrackingEngaged ? (
+                <button onClick={stopTracking} className={styles.primaryButton}>
+                  Stop tracking
+                </button>
+              ) : (
+                <button onClick={startTracking} className={styles.primaryButton}>
+                  Start tracking
+                </button>
+              )}
+
+              <select
+                value={language}
+                onChange={(event) => setLanguage(event.target.value as languages)}
+                className={styles.languageSelect}
+              >
+                <option value="english">English</option>
+                <option value="spanish">Español</option>
+              </select>
+            </div>
+
+            {helperCopy && <p className={styles.helperText}>{helperCopy}</p>}
+
+            <dl className={styles.metrics}>
+              <div>
+                <dt>Status</dt>
+                <dd>{statusBadge}</dd>
+              </div>
+              <div>
+                <dt>Gaze</dt>
+                <dd>{gazeLabel}</dd>
+              </div>
+            </dl>
+
+            {combinedError && <div className={styles.errorBanner}>{combinedError}</div>}
+          </div>
+
+          <div className={`${styles.edgePanel} ${styles.statusPanel}`}>
+            <span className={`${styles.statusBadge} ${styles[`status-${status}`]}`}>
+              {statusBadge}
+            </span>
+            <span className={styles.gazeIndicatorLabel}>Gaze</span>
+            <span className={styles.gazeIndicatorValue}>{gazeLabel}</span>
+          </div>
+
+          <div className={`${styles.edgePanel} ${styles.builderPanel}`}>
+            <div className={styles.panelHeader}>
+              <h2>Letter builder</h2>
+              <span className={styles.cardSubtitle}>Look at the wheel to add letters.</span>
+            </div>
+
+            <div className={styles.textDisplay} aria-live="polite">
+              {phoneticInput ? phoneticInput : <span className={styles.placeholder}>Your letters will appear here.</span>}
+            </div>
+
+            <div className={styles.buttonStack}>
+              <button onClick={handleSubmit} disabled={isProcessing || !phoneticInput.trim()}>
+                Submit phrase
+              </button>
+              <button onClick={() => setPhoneticInput('')} disabled={!phoneticInput}>
+                Clear input
+              </button>
+              <button onClick={() => setShowApiInput(true)}>Change API key</button>
+            </div>
+          </div>
+
+          <div className={`${styles.edgePanel} ${styles.responsePanel}`}>
+            <div className={styles.panelHeader}>
+              <h2>AI response</h2>
+              <span className={styles.cardSubtitle}>Your translated sentence.</span>
+            </div>
+
+            <div className={styles.textDisplay} aria-live="polite">
+              {isProcessing ? (
+                <span className={styles.placeholder}>Processing…</span>
+              ) : translatedText ? (
+                translatedText
+              ) : (
+                <span className={styles.placeholder}>The translation will appear here.</span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default EyeTalkApp;
