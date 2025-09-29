@@ -37,15 +37,16 @@ interface UseEyeTrackingReturn {
 const AUTO_RESTART_THRESHOLD = 25000;
 const HEALTH_CHECK_INTERVAL = 4000;
 const RESTART_DELAY = 250;
-const GAZE_HISTORY_MS = 1200;
-const MAX_HISTORY_POINTS = 120;
-const FIXATION_WINDOW_MS = 650;
-const FIXATION_MIN_DURATION_MS = 320;
-const FIXATION_MAX_RADIUS_PX = 35;
-const MIN_FIXATION_SAMPLES = 6;
-const SMOOTH_MIN_ALPHA = 0.2;
-const SMOOTH_MAX_ALPHA = 0.85;
-const MAX_VELOCITY_PX_PER_S = 2000;
+const GAZE_HISTORY_MS = 2000;       // Increased history window for more data points
+const MAX_HISTORY_POINTS = 200;     // Increased max points to accommodate larger window
+const FIXATION_WINDOW_MS = 800;     // Longer window for fixation detection
+const FIXATION_MIN_DURATION_MS = 250;  // Reduced to detect fixations earlier
+const FIXATION_MAX_RADIUS_PX = 45;  // Slightly larger radius for fixation detection
+const MIN_FIXATION_SAMPLES = 8;     // More samples required for a fixation
+const SMOOTH_MIN_ALPHA = 0.08;      // Much lower alpha for slower transitions when stationary
+const SMOOTH_MAX_ALPHA = 0.6;       // Lower max alpha for smoother motion during saccades
+const MAX_VELOCITY_PX_PER_S = 1500; // Lower velocity threshold
+const OUTLIER_THRESHOLD_PX = 120;   // Distance threshold for outlier detection
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -93,6 +94,19 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
       }
 
       const history = gazeHistoryRef.current;
+      
+      // Detect and filter obvious outliers before adding to history
+      if (history.length > 0) {
+        const lastPoint = history[history.length - 1];
+        const distance = Math.hypot(rawX - lastPoint.x, rawY - lastPoint.y);
+        
+        // Skip extreme jumps that are likely tracking errors
+        if (distance > OUTLIER_THRESHOLD_PX) {
+          // Return last smoothed point if available or last raw point as fallback
+          return smoothedPointRef.current || lastPoint;
+        }
+      }
+      
       history.push({ x: rawX, y: rawY, time: timestamp });
 
       while (history.length > MAX_HISTORY_POINTS) {
@@ -125,13 +139,15 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
         const fixationDuration = windowPoints[windowPoints.length - 1].time - windowPoints[0].time;
 
         if (fixationDuration >= FIXATION_MIN_DURATION_MS) {
+          // Calculate time-weighted centroid with stronger recency bias
           let weightSum = 0;
           let weightedX = 0;
           let weightedY = 0;
 
           for (const sample of windowPoints) {
+            // Exponential weighting with stronger recency bias (80ms decay)
             const age = Math.max(0, timestamp - sample.time);
-            const weight = Math.exp(-age / 120);
+            const weight = Math.exp(-age / 80);
             weightSum += weight;
             weightedX += sample.x * weight;
             weightedY += sample.y * weight;
@@ -141,6 +157,7 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
             const centroidX = weightedX / weightSum;
             const centroidY = weightedY / weightSum;
 
+            // Calculate dispersion to detect fixation (standard deviation of points)
             let dispersionAccumulator = 0;
             for (const sample of windowPoints) {
               const dx = sample.x - centroidX;
@@ -150,11 +167,21 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
 
             const rmsDispersion = Math.sqrt(dispersionAccumulator / windowPoints.length);
 
+            // If a fixation is detected
             if (rmsDispersion <= FIXATION_MAX_RADIUS_PX) {
-              const filteredFixationPoint = {
-                x: centroidX,
-                y: centroidY,
-              };
+              // Temporal stabilization - blend with previous fixation if it exists
+              const filteredFixationPoint = { x: centroidX, y: centroidY };
+              
+              // If we already had a previous fixation point, blend them for stability
+              if (smoothedPointRef.current) {
+                // Use very slow transition (strong stability) during fixations
+                const stabilityFactor = 0.15; 
+                filteredFixationPoint.x = smoothedPointRef.current.x + 
+                  stabilityFactor * (centroidX - smoothedPointRef.current.x);
+                filteredFixationPoint.y = smoothedPointRef.current.y + 
+                  stabilityFactor * (centroidY - smoothedPointRef.current.y);
+              }
+              
               smoothedPointRef.current = { ...filteredFixationPoint, time: timestamp };
               return filteredFixationPoint;
             }
@@ -173,14 +200,22 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
       const distance = Math.hypot(deltaX, deltaY);
       const velocity = (distance / dt) * 1000;
 
-      if (distance > FIXATION_MAX_RADIUS_PX * 4 && velocity > MAX_VELOCITY_PX_PER_S * 0.6) {
+      // Only reset on extreme saccades to avoid unnecessary jumps
+      if (distance > FIXATION_MAX_RADIUS_PX * 6 && velocity > MAX_VELOCITY_PX_PER_S * 0.8) {
         smoothedPointRef.current = { x: rawX, y: rawY, time: timestamp };
         return { x: rawX, y: rawY };
       }
-
-      const normalizedVelocity = clamp(velocity, 0, MAX_VELOCITY_PX_PER_S) / MAX_VELOCITY_PX_PER_S;
+      
+      // Calculate adaptive smoothing factor based on velocity and distance
+      // Lower velocity = stronger smoothing (lower alpha)
+      const normalizedVelocity = Math.pow(clamp(velocity, 0, MAX_VELOCITY_PX_PER_S) / MAX_VELOCITY_PX_PER_S, 1.5);
+      
+      // Stronger smoothing (lower alpha) for small movements
+      const distanceFactor = clamp(distance / 100, 0, 1);
+      
+      // Final adaptive alpha calculation with stronger smoothing for slower/smaller movements
       const alpha = clamp(
-        SMOOTH_MIN_ALPHA + (SMOOTH_MAX_ALPHA - SMOOTH_MIN_ALPHA) * normalizedVelocity,
+        SMOOTH_MIN_ALPHA + (SMOOTH_MAX_ALPHA - SMOOTH_MIN_ALPHA) * (0.3 * normalizedVelocity + 0.7 * distanceFactor),
         SMOOTH_MIN_ALPHA,
         SMOOTH_MAX_ALPHA
       );
@@ -188,8 +223,35 @@ export const useEyeTracking = (): UseEyeTrackingReturn => {
       const filteredX = lastFiltered.x + alpha * deltaX;
       const filteredY = lastFiltered.y + alpha * deltaY;
 
-      const safeX = Number.isFinite(filteredX) ? filteredX : rawX;
-      const safeY = Number.isFinite(filteredY) ? filteredY : rawY;
+      let safeX = Number.isFinite(filteredX) ? filteredX : rawX;
+      let safeY = Number.isFinite(filteredY) ? filteredY : rawY;
+      
+      // Apply additional moving-average filter for fast movements
+      if (velocity > MAX_VELOCITY_PX_PER_S * 0.3) {
+        // Get recent points for a moving average during saccades
+        const recentPoints = history.slice(-5);
+        if (recentPoints.length >= 3) {
+          // Simple moving average for additional stability during fast movements
+          let avgX = safeX; // Start with our filtered point
+          let avgY = safeY;
+          let count = 1;
+          
+          // Add recent points with decreasing weights
+          for (let i = recentPoints.length - 2; i >= Math.max(0, recentPoints.length - 4); i--) {
+            const pt = recentPoints[i];
+            const weight = 0.5 / (recentPoints.length - i); // Decreasing weight by recency
+            avgX += pt.x * weight;
+            avgY += pt.y * weight;
+            count += weight;
+          }
+          
+          if (count > 0) {
+            // Final weighted average
+            safeX = avgX / count;
+            safeY = avgY / count;
+          }
+        }
+      }
 
       smoothedPointRef.current = { x: safeX, y: safeY, time: timestamp };
 
