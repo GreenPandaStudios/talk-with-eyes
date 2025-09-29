@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { useOpenAI } from '../hooks/useOpenAI';
 import { PhoneticWheel } from './PhoneticWheel';
-
+import { getOpenAIApiKeyFromPassword } from '../utils';
 import type { languages } from '../types';
 import styles from './EyeTalkApp.module.css';
 
 const EyeTalkApp: React.FC = () => {
-  const [apiKey, setApiKey] = useState('');
+  const [password, setPassword] = useState('');
   const [phoneticInput, setPhoneticInput] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [language, setLanguage] = useState<languages>('english');
@@ -15,13 +15,6 @@ const EyeTalkApp: React.FC = () => {
 
   const { gazeData, status, startTracking, stopTracking, error: trackingError, calibrationOverlay } = useEyeTracking();
   const { processPhoneticInput, isProcessing, error: openaiError, setApiKey: setOpenAIKey } = useOpenAI();
-
-  useEffect(() => {
-    if (apiKey) {processPhoneticInput
-      processPhoneticInput(phoneticInput, language);
-      setOpenAIKey(apiKey);
-    }
-  }, [apiKey, setOpenAIKey]);
 
   const handlePhoneticSelection = useCallback((sound: string) => {
     if (sound === 'DELETE') {
@@ -44,12 +37,12 @@ const EyeTalkApp: React.FC = () => {
     }
   }, [language, phoneticInput, processPhoneticInput]);
 
-  const handleApiKeySubmit = (event: React.FormEvent) => {
+  const handleApiKeySubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
-    if (apiKey.trim()) {
-      setShowApiInput(false);
-    }
-  };
+    var apiKey = await getOpenAIApiKeyFromPassword(password);
+    setOpenAIKey(apiKey);
+    setShowApiInput(false);
+  }, [password]);
 
   const statusBadge = useMemo(() => {
     switch (status) {
@@ -142,17 +135,17 @@ const EyeTalkApp: React.FC = () => {
           <form onSubmit={handleApiKeySubmit} className={styles.apiForm}>
             <h2>Connect your OpenAI account</h2>
             <p className={styles.apiFormDescription}>
-              Your key stays on this device. Enter it once to unlock speech.
+              Enter your password
             </p>
             <label htmlFor="apiKey" className={styles.apiFormLabel}>
-              OpenAI API key
+              Password
             </label>
             <input
               type="password"
               id="apiKey"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder="sk-..."
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder=""
               required
             />
             <button type="submit">Save and continue</button>
