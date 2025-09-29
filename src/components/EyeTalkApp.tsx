@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { useOpenAI } from '../hooks/useOpenAI';
 import { PhoneticWheel } from './PhoneticWheel';
@@ -12,6 +12,31 @@ const EyeTalkApp: React.FC = () => {
   const [translatedText, setTranslatedText] = useState('');
   const [language, setLanguage] = useState<languages>('english');
   const [showApiInput, setShowApiInput] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(
+        document.fullscreenElement || 
+        (document as any).webkitFullscreenElement || 
+        (document as any).mozFullScreenElement || 
+        (document as any).msFullscreenElement
+      ));
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
 
   const { gazeData, status, startTracking, stopTracking, error: trackingError, calibrationOverlay } = useEyeTracking();
   const { processPhoneticInput, isProcessing, error: openaiError, setApiKey: setOpenAIKey } = useOpenAI();
@@ -183,6 +208,39 @@ const EyeTalkApp: React.FC = () => {
                 <option value="english">English</option>
                 <option value="spanish">Español</option>
               </select>
+            </div>
+            
+            <div className={styles.controlRow}>
+              <button 
+                onClick={() => {
+                  if (isFullscreen) {
+                    if (document.exitFullscreen) {
+                      document.exitFullscreen();
+                    } else if ((document as any).webkitExitFullscreen) {
+                      (document as any).webkitExitFullscreen();
+                    } else if ((document as any).mozCancelFullScreen) {
+                      (document as any).mozCancelFullScreen();
+                    } else if ((document as any).msExitFullscreen) {
+                      (document as any).msExitFullscreen();
+                    }
+                  } else {
+                    const docEl = document.documentElement;
+                    if (docEl.requestFullscreen) {
+                      docEl.requestFullscreen();
+                    } else if ((docEl as any).webkitRequestFullscreen) {
+                      (docEl as any).webkitRequestFullscreen();
+                    } else if ((docEl as any).mozRequestFullScreen) {
+                      (docEl as any).mozRequestFullScreen();
+                    } else if ((docEl as any).msRequestFullscreen) {
+                      (docEl as any).msRequestFullscreen();
+                    }
+                  }
+                }}
+                className={`${styles.fullscreenButton} ${isFullscreen ? styles.fullscreenActive : ''}`}
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+              >
+                {isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              </button>
             </div>
 
             {helperCopy && <p className={styles.helperText}>{helperCopy}</p>}
