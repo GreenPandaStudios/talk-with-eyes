@@ -103,7 +103,12 @@
     "w center e"
     "sw s se";
   gap: 1rem;
-  padding: clamp(2rem, 8vmin, 8rem);
+  /* MODIFICATION START: Replaced padding shorthand to prevent overlap */
+  padding-top: clamp(5rem, 12vmin, 12rem);
+  padding-bottom: clamp(4rem, 10vmin, 10rem);
+  padding-left: clamp(2rem, 8vmin, 8rem);
+  padding-right: clamp(2rem, 8vmin, 8rem);
+  /* MODIFICATION END */
   box-sizing: border-box;
   max-width: 100vw;
   max-height: 100vh;
@@ -217,7 +222,7 @@
     pointer-events: none;
     box-shadow: 0 0 0 7px rgba(249, 115, 22, 0.16);
   }
-  
+
   @media (max-width: 600px) {
     .gazeCursor {
       width: clamp(18px, 2.8vmin, 28px);
@@ -226,7 +231,7 @@
       box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.16);
     }
   }
-  
+
   @media (max-width: 480px) {
     .gazeCursor {
       width: clamp(16px, 2.5vmin, 24px);
@@ -261,18 +266,23 @@
 
     .grid {
       gap: clamp(10px, 4vmin, 48px);
-      padding: 6rem;
+      /* MODIFICATION START: Adjusted padding to avoid overlap */
+      padding-top: 8rem;
+      padding-bottom: 5rem;
+      padding-left: 6rem;
+      padding-right: 6rem;
+      /* MODIFICATION END */
     }
-    
+
     .cell {
       min-width: clamp(90px, 20vmin, 300px);
       padding: clamp(1rem, 3vmin, 2.8rem);
     }
-    
+
     .cellTitle {
       font-size: clamp(1.4rem, 3.5vmin, 2.8rem);
     }
-    
+
     .cellDetail {
       font-size: clamp(0.8rem, 1.8vmin, 1.3rem);
     }
@@ -288,28 +298,33 @@
       font-size: clamp(0.55rem, 0.9vmin, 0.7rem);
       padding: clamp(0.25rem, 0.7vmin, 0.45rem) clamp(0.4rem, 1vmin, 0.7rem);
     }
-    
+
     .grid {
       width: min(96vw, 420px);
-      padding: clamp(12px, 5vmin, 32px);
+      /* MODIFICATION START: Adjusted padding for bottom legend */
+      padding-top: clamp(12px, 5vmin, 32px);
+      padding-bottom: clamp(50px, 12vmin, 80px);
+      padding-left: clamp(12px, 5vmin, 32px);
+      padding-right: clamp(12px, 5vmin, 32px);
+      /* MODIFICATION END */
       gap: clamp(8px, 3vmin, 24px);
     }
-    
+
     .cell {
       min-width: clamp(70px, 18vmin, 250px);
       padding: clamp(0.7rem, 2.2vmin, 2rem);
       border-radius: clamp(16px, 4vmin, 48px);
       gap: clamp(0.4rem, 1.2vmin, 1.2rem);
     }
-    
+
     .cellTitle {
       font-size: clamp(1.2rem, 3vmin, 2.5rem);
     }
-    
+
     .cellDetail {
       font-size: clamp(0.7rem, 1.6vmin, 1.2rem);
     }
-    
+
     .cellProgress {
       left: clamp(12px, 3vmin, 30px);
       right: clamp(12px, 3vmin, 30px);
@@ -317,14 +332,19 @@
       height: clamp(6px, 1.5vmin, 10px);
     }
   }
-  
+
   @media (max-width: 480px) {
     .grid {
       width: 100vw;
-      padding: clamp(8px, 3vmin, 24px);
+      /* MODIFICATION START: Adjusted padding for bottom legend */
+      padding-top: clamp(8px, 3vmin, 24px);
+      padding-bottom: clamp(40px, 10vmin, 60px);
+      padding-left: clamp(8px, 3vmin, 24px);
+      padding-right: clamp(8px, 3vmin, 24px);
+      /* MODIFICATION END */
       gap: clamp(6px, 2vmin, 16px);
     }
-    
+
     .cell {
       min-width: clamp(60px, 16vmin, 200px);
       padding: clamp(0.5rem, 1.8vmin, 1.5rem);
