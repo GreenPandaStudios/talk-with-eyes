@@ -12,31 +12,8 @@ const EyeTalkApp: React.FC = () => {
   const [translatedText, setTranslatedText] = useState('');
   const [language, setLanguage] = useState<languages>('english');
   const [showApiInput, setShowApiInput] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  
-  // Handle fullscreen changes
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(Boolean(
-        document.fullscreenElement || 
-        (document as any).webkitFullscreenElement || 
-        (document as any).mozFullScreenElement || 
-        (document as any).msFullscreenElement
-      ));
-    };
-    
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
+  const [showSettingsOverlay, setShowSettingsOverlay] = useState(false);
+  const [isLoadingText, setIsLoadingText] = useState(false);
 
   const { gazeData, status, startTracking, stopTracking, error: trackingError, calibrationOverlay } = useEyeTracking();
   const { processPhoneticInput, isProcessing, error: openaiError, setApiKey: setOpenAIKey } = useOpenAI();
@@ -51,16 +28,22 @@ const EyeTalkApp: React.FC = () => {
 
   const handleSubmit = useCallback(async () => {
     if (!phoneticInput.trim()) return;
+          setTranslatedText('');
 
     try {
+      setIsLoadingText(true);
       const result = await processPhoneticInput(phoneticInput, language);
       // clear the input after submission
       setPhoneticInput('');
       setTranslatedText(result);
     } catch (error) {
       console.error('Error processing input:', error);
+    } finally {
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Ensure loading state is visible
+      setIsLoadingText(false);
+
     }
-  }, [language, phoneticInput, processPhoneticInput]);
+  }, [language, phoneticInput, processPhoneticInput, setIsLoadingText]);
 
   const handleApiKeySubmit = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
@@ -138,9 +121,25 @@ const EyeTalkApp: React.FC = () => {
       </div>
     );
   }
+  if (isLoadingText) {
+    return (
+      <div className={styles.appShell}>
+        <div className={styles.loadingOverlay}>
+          {!translatedText && (<div className={styles.loadingSpinner} aria-hidden="true"></div>)}
+          <h1 className={styles.loadingText}>
+            {translatedText ? translatedText : 'Processing your input...'}
+          </h1>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.appShell}>
+
+            <div className={styles.textDisplay} aria-live="polite">
+              {phoneticInput ? phoneticInput : <span className={styles.placeholder}>Your letters will appear here.</span>}
+            </div>
       <div className={styles.wheelStage}>
         {
         !isProcessing &&
@@ -176,13 +175,8 @@ const EyeTalkApp: React.FC = () => {
             <button type="submit">Save and continue</button>
           </form>
         </div>
-      ) : (
+      ) : showSettingsOverlay ? ( 
         <>
-          <div className={`${styles.edgePanel} ${styles.brandPanel}`}>
-            <h1>Talk With Eyes</h1>
-            <p className={styles.tagline}>Spell words with your gaze—everything else hugs the edges.</p>
-          </div>
-
           <div className={`${styles.edgePanel} ${styles.sessionPanel}`}>
             <div className={styles.panelHeader}>
               <h2>Session</h2>
@@ -209,40 +203,6 @@ const EyeTalkApp: React.FC = () => {
                 <option value="spanish">Español</option>
               </select>
             </div>
-            
-            <div className={styles.controlRow}>
-              <button 
-                onClick={() => {
-                  if (isFullscreen) {
-                    if (document.exitFullscreen) {
-                      document.exitFullscreen();
-                    } else if ((document as any).webkitExitFullscreen) {
-                      (document as any).webkitExitFullscreen();
-                    } else if ((document as any).mozCancelFullScreen) {
-                      (document as any).mozCancelFullScreen();
-                    } else if ((document as any).msExitFullscreen) {
-                      (document as any).msExitFullscreen();
-                    }
-                  } else {
-                    const docEl = document.documentElement;
-                    if (docEl.requestFullscreen) {
-                      docEl.requestFullscreen();
-                    } else if ((docEl as any).webkitRequestFullscreen) {
-                      (docEl as any).webkitRequestFullscreen();
-                    } else if ((docEl as any).mozRequestFullScreen) {
-                      (docEl as any).mozRequestFullScreen();
-                    } else if ((docEl as any).msRequestFullscreen) {
-                      (docEl as any).msRequestFullscreen();
-                    }
-                  }
-                }}
-                className={`${styles.fullscreenButton} ${isFullscreen ? styles.fullscreenActive : ''}`}
-                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-              >
-                {isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-              </button>
-            </div>
-
             {helperCopy && <p className={styles.helperText}>{helperCopy}</p>}
 
             <dl className={styles.metrics}>
@@ -273,9 +233,6 @@ const EyeTalkApp: React.FC = () => {
               <span className={styles.cardSubtitle}>Look at the wheel to add letters.</span>
             </div>
 
-            <div className={styles.textDisplay} aria-live="polite">
-              {phoneticInput ? phoneticInput : <span className={styles.placeholder}>Your letters will appear here.</span>}
-            </div>
 
             <div className={styles.buttonStack}>
               <button onClick={handleSubmit} disabled={isProcessing || !phoneticInput.trim()}>
@@ -304,7 +261,12 @@ const EyeTalkApp: React.FC = () => {
               )}
             </div>
           </div>
+          <button className={styles.closeButton} onClick={() => setShowSettingsOverlay(false)} aria-label="Close settings panel">
+            Close Settings
+          </button>
         </>
+      ) : (
+        <button className={styles.settingsButton} onClick={() => setShowSettingsOverlay(true)}>Open Settings</button>
       )}
     </div>
   );

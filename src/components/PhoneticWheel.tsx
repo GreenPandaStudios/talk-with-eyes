@@ -403,43 +403,6 @@ export const PhoneticWheel: React.FC<PhoneticWheelProps> = ({
     }
   }, []);
 
-  const stepTitle = selectionLevel === 'group' ? 'Step 1 of 2 · Choose a letter cluster' : 'Step 2 of 2 · Pick the exact letter';
-
-  const focusPreview = useMemo(() => {
-    if (!isTracking) {
-      return 'Click a tile to begin selecting';
-    }
-
-    if (hoveredZone === null) {
-      return selectionLevel === 'group' ? 'Look toward a tile to begin' : 'Choose a letter or look South to go back';
-    }
-
-    if (selectionLevel === 'group') {
-      if (hoveredZone === CENTER_INDEX) return alphabet.specialActions.submit;
-      if (hoveredZone === SOUTH_INDEX) return alphabet.specialActions.delete;
-      const zone = alphabet.zones[hoveredZone];
-      return zone ? zone.label : '';
-    }
-
-    if (hoveredZone === CENTER_INDEX) return alphabet.specialActions.space;
-    if (hoveredZone === SOUTH_INDEX) return alphabet.backLabel;
-    return letterAssignments.get(hoveredZone) ?? '';
-  }, [alphabet, hoveredZone, isTracking, letterAssignments, selectionLevel]);
-
-  const selectionContext = useMemo(() => {
-    if (!isTracking) {
-      return 'Click a cluster or start eye tracking when you are ready to speak.';
-    }
-
-    if (selectionLevel === 'group') {
-      return 'Focus on the cluster that contains your next sound.';
-    }
-
-    const zone = selectedZone !== null ? alphabet.zones[selectedZone] : undefined;
-    if (!zone) return 'Pick a letter or sound.';
-    return `Now selecting from: ${zone.label}`;
-  }, [alphabet, isTracking, selectedZone, selectionLevel]);
-
   const renderCellContent = (index: number) => {
     if (selectionLevel === 'group') {
       if (index === CENTER_INDEX) {
@@ -494,29 +457,6 @@ export const PhoneticWheel: React.FC<PhoneticWheelProps> = ({
 
   return (
     <div className={styles.container}>
-      <div className={styles.statusRow}>
-        <div className={styles.statusCard}>
-          <p className={styles.stepTitle}>{stepTitle}</p>
-          <p className={styles.selectionContext}>{selectionContext}</p>
-          <p className={styles.trackingStatus}>
-            {isTracking
-              ? 'Eye tracking active — gaze or click to choose.'
-              : 'Eye tracking paused — click tiles to continue.'}
-          </p>
-        </div>
-        <div className={styles.statusCard}>
-          <p className={styles.previewLabel}>Current focus</p>
-          <p className={styles.previewValue}>{focusPreview}</p>
-          {dwellProgress > 0 && hoveredZone !== null && (
-            <div className={styles.progressMeter}>
-              <div
-                className={styles.progressFill}
-                style={{ width: `${Math.round(dwellProgress * 100)}%` }}
-              />
-            </div>
-          )}
-        </div>
-      </div>
 
       <div className={styles.gridWrapper}>
         <div className={styles.grid} ref={containerRef}>
@@ -589,15 +529,6 @@ export const PhoneticWheel: React.FC<PhoneticWheelProps> = ({
             />
           )}
         </div>
-      </div>
-
-      <div className={styles.legend}>
-        <p>
-          Click or hold your gaze for one second to select. The center tile is for
-          {selectionLevel === 'group' ? ` ${alphabet.specialActions.submit}` : ` ${alphabet.specialActions.space}`}.
-          Look south to {selectionLevel === 'group' ? alphabet.specialActions.delete.toLowerCase() : alphabet.backLabel.toLowerCase()}.
-          {' '}Targets will gently snap when you focus on them, and the space between tiles gives you a calm spot to rest your gaze.
-        </p>
       </div>
     </div>
   );
