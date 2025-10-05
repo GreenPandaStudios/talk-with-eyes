@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useEyeTracking } from '../hooks/useEyeTracking';
 import { useOpenAI } from '../hooks/useOpenAI';
 import { PhoneticWheel } from './PhoneticWheel';
